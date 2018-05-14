@@ -406,8 +406,18 @@ NodeID3.prototype.getTagsFromBuffer = function(filebuffer, options) {
           function(key) {
             if (SFrames[key].name === frame.name) {
               let decoded = this[SFrames[key].read](frame.body)
+              if (tags[key]) {
+                if (typeof tags[key] === 'array') {
+                  tags.raw[frame.name].push(decoded)
+                  tags[key].push(decoded)
+                } else {
+                  tags.raw[frame.name] = [tags.raw[frame.name], decoded]
+                  tags[key] = [tags[key], decoded]
+                }
+              } else {
               tags.raw[frame.name] = decoded
               tags[key] = decoded
+              }
             }
           }.bind(this)
         )
@@ -953,32 +963,34 @@ NodeID3.prototype.readUnsynchronisedLyricsFrame = function(frame) {
 NodeID3.prototype.createPrivateFrame = function(priv) {
   if (!priv || priv.length === 0) return null
 
-  let frames = priv.map(p => {
-    let bData = Buffer.from(p.data)
+  if (priv instanceof Array) {
+    return Buffer.concat(priv.map(p => {
+      let bData = Buffer.from(p.data)
+      let bHeader = Buffer.alloc(10)
+      bHeader.write('PRIV')
+      let bContent = Buffer.alloc(p.owner.length + 2)
+      bContent.write(p.owner, 1)
+      bHeader.writeUInt32BE(bData.length + bContent.length, 4)
+      return Buffer.concat([bHeader, bContent, bData])
+    }))
+  } else {
+    let bData = Buffer.from(priv.data)
     let bHeader = Buffer.alloc(10)
     bHeader.write('PRIV')
-    let bContent = Buffer.alloc(p.owner.length + 2)
-    bContent.fill(0)
-    bContent.write(p.owner, 1)
+    let bContent = Buffer.alloc(priv.owner.length + 2)
+    bContent.write(priv.owner, 1)
     bHeader.writeUInt32BE(bData.length + bContent.length, 4)
     return Buffer.concat([bHeader, bContent, bData])
-  })
-
-  let buff = Buffer.concat(frames)
-  return buff
+  }
 }
 
 NodeID3.prototype.readPrivateFrame = function(frame) {
   let tags = {}
 
-  if (!frame) {
-    return tags
-  }
-
   tags = {
-    owner: frame.toString('ascii').substring(0, frame.indexOf(0x00, 1)),
-    dataBuffer: frame.slice(frame.indexOf(0x00, 1) + 1)
+    owner: frame.toString('ascii').substring(1, frame.indexOf(0x00, 1)),
+    data: frame.slice(frame.indexOf(0x00, 1) + 1)
   }
 
-  return null
+  return tags
 }
