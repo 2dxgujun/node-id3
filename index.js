@@ -462,6 +462,9 @@ NodeID3.prototype.getFrameSize = function(buffer, decode) {
 */
 NodeID3.prototype.removeTagsFromBuffer = function(data) {
   let framePosition = this.getFramePosition(data)
+  if (framePosition === -1) {
+    return false
+  }
   let hSize = new Buffer([
     data[framePosition + 6],
     data[framePosition + 7],
